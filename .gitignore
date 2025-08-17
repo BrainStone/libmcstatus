@@ -43,6 +43,8 @@ peda-session-*.txt
 # CMake
 #############################
 
+**/conan_provider.cmake
+**/CMakeUserPresets.json
 **/cmake-build-*/
 **/CMakeCache.txt
 **/cmake_install.cmake
@@ -71,7 +73,6 @@ build/**/*
 # Build stuff
 #############################
 
-include/*
 lib/*
 bin/*
 

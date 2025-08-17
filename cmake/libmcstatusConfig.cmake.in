@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find required dependencies
+find_dependency(Boost REQUIRED COMPONENTS system)
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/libmcstatusTargets.cmake")
+
+check_required_components(libmcstatus)
