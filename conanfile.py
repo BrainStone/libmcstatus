@@ -8,7 +8,7 @@ class MyLibConan(ConanFile):
 	license = "MIT"
 	url = "https://github.com/BrainStone/libmcstatus"
 	description = "C++ implementation of https://github.com/py-mine/mcstatus. Not necessarily a perfect 1:1 port but with roughly the same functionality"
-	settings = "os", "compiler", "build_type", "arch", "compiler.cppstd"
+	settings = "os", "compiler", "build_type", "arch"
 	generators = "CMakeDeps", "CMakeToolchain"
 	exports_sources = "src/*", "include/*", "CMakeLists.txt"
 	options = {"shared": [True, False], "fPIC": [True, False]}
