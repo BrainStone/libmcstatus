@@ -10,7 +10,7 @@ class MyLibConan(ConanFile):
 	description = "C++ implementation of https://github.com/py-mine/mcstatus. Not necessarily a perfect 1:1 port but with roughly the same functionality"
 	settings = "os", "compiler", "build_type", "arch"
 	generators = "CMakeDeps", "CMakeToolchain"
-	exports_sources = "src/*", "include/*", "test/*", "CMakeLists.txt"
+	exports_sources = "src/*", "include/*", "CMakeLists.txt"
 	options = {"shared": [True, False], "fPIC": [True, False]}
 	default_options = {"shared": False, "fPIC": True}
 

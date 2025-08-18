@@ -26,7 +26,7 @@ file(GLOB_RECURSE LIBMCSTATUS_SOURCES "src/*.cpp")
 file(GLOB_RECURSE LIBMCSTATUS_HEADERS "include/*.hpp")
 
 # Create the library
-add_library(mcstatus ${LIBMCSTATUS_SOURCES})
+add_library(mcstatus ${LIBMCSTATUS_SOURCES} ${LIBMCSTATUS_HEADERS})
 
 # Set target properties
 set_target_properties(mcstatus PROPERTIES

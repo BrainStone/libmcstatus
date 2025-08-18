@@ -1,0 +1,33 @@
+#ifndef LIBMCSTATUS_JAVASERVER_HPP
+#define LIBMCSTATUS_JAVASERVER_HPP
+
+#include <boost/asio/ip/tcp.hpp>
+#include <string_view>
+#include <cstdint>
+
+#include "McServer.hpp"
+
+namespace libmcstatus {
+
+class JavaServer : public McServer {
+private:
+	boost::asio::ip::tcp::endpoint server_address;
+
+public:
+	static constexpr boost::asio::ip::port_type DEFAULT_PORT{25565};
+	
+	explicit JavaServer(boost::asio::ip::tcp::endpoint server_address);
+	JavaServer(const boost::asio::ip::address& ip_address, boost::asio::ip::port_type port);
+	
+	using McServer::ping;
+	using McServer::status;
+
+	[[nodiscard]] std::chrono::high_resolution_clock::duration ping(std::chrono::milliseconds timeout) const override;
+	void status(std::chrono::milliseconds timeout) const override;
+	
+	static JavaServer lookup(std::string_view host_address);
+};
+
+}  // namespace libmcstatus
+
+#endif  // LIBMCSTATUS_JAVASERVER_HPP
