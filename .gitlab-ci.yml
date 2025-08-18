@@ -29,10 +29,9 @@ variables:
     stage: build
     needs: []
     before_script:
-        - conan profile detect --force --out-file=conan_profile
-        - cat conan_profile
+        - conan profile detect --force
     script:
-        - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr conan_profile
+        - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20
         - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
         - cmake --build build --config $BUILD_TYPE
     artifacts:
