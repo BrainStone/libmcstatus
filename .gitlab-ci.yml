@@ -29,6 +29,7 @@ variables:
     stage: build
     needs: []
     script:
+        - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE
         - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
         - cmake --build build --config $BUILD_TYPE
     artifacts:
