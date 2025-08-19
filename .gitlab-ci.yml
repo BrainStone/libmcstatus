@@ -36,7 +36,7 @@ variables:
         - cmake --build build --config $BUILD_TYPE
     after_script:
         - ls -lAh --color build
-        - ls -lAh --color build/build
+        - ls -lAh --color build/$BUILD_TYPE
     artifacts:
         expire_in: 10 mins
         paths:
