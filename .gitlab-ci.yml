@@ -81,7 +81,7 @@ test:debug:
 
 coverage:
     extends:
-        - .coverage
+        - .test
     stage: coverage
     variables:
         BUILD_TYPE: Debug
