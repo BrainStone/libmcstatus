@@ -35,12 +35,12 @@ variables:
 
 .build:
     stage: build
-    needs: [ ]
+    needs: []
     before_script:
         - conan profile detect --force --name=libmcstatus_$BUILD_TYPE
     script:
-        - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr libmcstatus_$BUILD_TYPE
-        - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${ENABLE_COVERAGE:+-DENABLE_COVERAGE=ON}
+        - conan install . --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr libmcstatus_$BUILD_TYPE
+        - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_TOOLCHAIN_FILE=build/$BUILD_TYPE/generators/conan_toolchain.cmake ${ENABLE_COVERAGE:+-DENABLE_COVERAGE=ON}
         - cmake --build build --config $BUILD_TYPE
     artifacts:
         expire_in: 10 mins
@@ -98,8 +98,6 @@ coverage:
         - lcov --remove coverage.info '/usr/*' --output-file coverage.info
         - lcov --remove coverage.info '*/tests/*' --output-file coverage.info
         - lcov --remove coverage.info '*/build/*' --output-file coverage.info
-        # Convert to Cobertura format for GitLab
-        - pip install lcov_cobertura
         - lcov_cobertura coverage.info --output coverage.xml
         - genhtml coverage.info --output-directory coverage_html
     artifacts:

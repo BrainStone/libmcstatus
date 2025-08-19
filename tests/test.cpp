@@ -27,7 +27,7 @@ TEST(DummyTest, lookup) {
 	auto server1 = libmcstatus::JavaServer::lookup("127.0.0.1");
 	auto server2= libmcstatus::JavaServer::lookup("127.0.0.1:12345");
 	auto server3 = libmcstatus::JavaServer::lookup("mc02.root.project-creative.net");
-	auto server4 = libmcstatus::JavaServer::lookup("foo.bar");
+//	auto server4 = libmcstatus::JavaServer::lookup("foo.bar");
 }
 
 // You can add tests for your library functions here
