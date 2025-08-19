@@ -35,7 +35,8 @@ variables:
         - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
         - cmake --build build --config $BUILD_TYPE
     after_script:
-        - ls -lAh build
+        - ls -lAh --color build
+        - ls -lAh --color build/build
     artifacts:
         expire_in: 10 mins
         paths:
