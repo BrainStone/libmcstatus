@@ -20,12 +20,12 @@ option(LIBMCSTATUS_BUILD_TESTS "Build tests" ON)
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 
 # Coverage settings
-if(ENABLE_COVERAGE)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if (ENABLE_COVERAGE)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
-    endif()
-endif()
+    endif ()
+endif ()
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -45,10 +45,10 @@ set_target_properties(mcstatus PROPERTIES
 )
 
 # Coverage for library
-if(ENABLE_COVERAGE)
+if (ENABLE_COVERAGE)
     target_compile_options(mcstatus PRIVATE --coverage)
     target_link_libraries(mcstatus PRIVATE --coverage)
-endif()
+endif ()
 
 # Link dependencies
 target_link_libraries(mcstatus
@@ -111,7 +111,7 @@ install(FILES
 )
 
 # Testing
-if(LIBMCSTATUS_BUILD_TESTS)
+if (LIBMCSTATUS_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
-endif()
+endif ()

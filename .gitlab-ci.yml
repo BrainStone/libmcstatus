@@ -92,7 +92,7 @@ coverage:
     after_script:
         - cd build
         # Generate coverage data
-        - gcov -r $(find . -name "*.gcno")
+        - find . -name "*.gcno" -exec gcov -r {} +
         - lcov --capture --directory . --output-file coverage.info
         - lcov --remove coverage.info '/usr/*' --output-file coverage.info
         - lcov --remove coverage.info '*/tests/*' --output-file coverage.info

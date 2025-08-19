@@ -18,6 +18,11 @@ target_include_directories(libmcstatus_tests
         ${CMAKE_SOURCE_DIR}/include
 )
 
+if (ENABLE_COVERAGE)
+    target_compile_options(libmcstatus_tests PRIVATE --coverage)
+    target_link_libraries(libmcstatus_tests PRIVATE --coverage)
+endif ()
+
 # Add tests to CTest
 include(GoogleTest)
 gtest_discover_tests(libmcstatus_tests)
