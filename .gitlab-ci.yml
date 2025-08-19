@@ -28,7 +28,7 @@ variables:
 
 .build:
     stage: build
-    needs: []
+    needs: [ ]
     before_script:
         - conan profile detect --force --name=libmcstatus_$BUILD_TYPE
     script:
@@ -52,6 +52,11 @@ variables:
             - build/reports/**/*.xml
         reports:
             junit: build/reports/**/*.xml
+
+.coverage:
+    variables:
+        BUILD_TYPE: Debug
+        ENABLE_COVERAGE: "ON"
 
 # Jobs
 build:release:
@@ -81,13 +86,9 @@ test:debug:
 
 coverage:
     extends:
+        - .coverage
         - .test
     stage: coverage
-    variables:
-        BUILD_TYPE: Debug
-        ENABLE_COVERAGE: "ON"
-    needs:
-        - build:coverage
     after_script:
         - cd build
         # Generate coverage data
@@ -111,4 +112,6 @@ coverage:
                 coverage_format: cobertura
                 path: build/coverage.xml
     coverage: '/lines......: \d+\.\d+%/'
+    needs:
+        - build:coverage
 
