@@ -32,7 +32,7 @@ variables:
         - conan profile detect --force --name=libmcstatus_$BUILD_TYPE
     script:
         - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr libmcstatus_$BUILD_TYPE
-        - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake
+        - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
         - cmake --build build --config $BUILD_TYPE
     artifacts:
         expire_in: 10 mins
