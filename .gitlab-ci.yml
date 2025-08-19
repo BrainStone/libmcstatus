@@ -29,9 +29,9 @@ variables:
     stage: build
     needs: []
     before_script:
-        - conan profile detect --force
+        - conan profile detect --force --name=libmcstatus_$BUILD_TYPE
     script:
-        - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20
+        - conan install . --output-folder=build --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr libmcstatus_$BUILD_TYPE
         - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
         - cmake --build build --config $BUILD_TYPE
     artifacts:
