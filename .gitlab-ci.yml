@@ -26,13 +26,6 @@ variables:
     needs:
         - build:debug
 
-.coverage:
-    variables:
-        BUILD_TYPE: Debug
-        ENABLE_COVERAGE: "ON"
-    needs:
-        - build:coverage
-
 .build:
     stage: build
     needs: []
@@ -89,7 +82,12 @@ test:debug:
 coverage:
     extends:
         - .coverage
-        - .test
+    stage: coverage
+    variables:
+        BUILD_TYPE: Debug
+        ENABLE_COVERAGE: "ON"
+    needs:
+        - build:coverage
     after_script:
         - cd build
         # Generate coverage data
