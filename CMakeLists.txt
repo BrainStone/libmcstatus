@@ -17,6 +17,15 @@ find_package(Boost REQUIRED COMPONENTS system)
 # Library options
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(LIBMCSTATUS_BUILD_TESTS "Build tests" ON)
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+
+# Coverage settings
+if(ENABLE_COVERAGE)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+    endif()
+endif()
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -34,6 +43,12 @@ set_target_properties(mcstatus PROPERTIES
         SOVERSION ${PROJECT_VERSION_MAJOR}
         OUTPUT_NAME "mcstatus"
 )
+
+# Coverage for library
+if(ENABLE_COVERAGE)
+    target_compile_options(mcstatus PRIVATE --coverage)
+    target_link_libraries(mcstatus PRIVATE --coverage)
+endif()
 
 # Link dependencies
 target_link_libraries(mcstatus
