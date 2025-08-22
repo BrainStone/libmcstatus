@@ -22,6 +22,10 @@ public:
 	[[nodiscard]] virtual std::chrono::high_resolution_clock::duration ping(
 	    std::chrono::milliseconds timeout) const = 0;
 	virtual void status(std::chrono::milliseconds timeout) const = 0;
+	
+	virtual std::string to_string() const = 0;
+	
+	friend std::ostream& operator<<(std::ostream& os, const McServer& server);
 };
 
 }  // namespace libmcstatus

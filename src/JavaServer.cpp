@@ -1,5 +1,6 @@
 #include "libmcstatus/JavaServer.hpp"
 
+#include "libmcstatus/impl/SrvResolver.hpp"
 #include "libmcstatus/impl/Utils.hpp"
 
 namespace libmcstatus {
@@ -24,22 +25,29 @@ void JavaServer::status(std::chrono::milliseconds timeout) const {
 }
 
 JavaServer JavaServer::lookup(std::string_view host_address) {
-	static const std::string DEFAULT_PORT_STR{std::to_string(DEFAULT_PORT)};
-
 	boost::system::error_code ec;
 	boost::asio::io_context io_context;
 	boost::asio::ip::tcp::resolver resolver(io_context);
 
-	auto colon = host_address.rfind(':');
-	bool colon_found = colon != std::string_view::npos;
-	const std::string_view host = host_address.substr(0, colon);
-	const std::string_view port = colon_found ? host_address.substr(colon + 1) : DEFAULT_PORT_STR;
+	const auto colon = host_address.rfind(':');
+	const bool colon_found = colon != std::string_view::npos;
+	std::string host = std::string{host_address.substr(0, colon)};
+	std::string port = colon_found ? std::string{host_address.substr(colon + 1)} : std::to_string(DEFAULT_PORT);
 
 	// Check if the host is an IP address
 	const boost::asio::ip::address address = boost::asio::ip::make_address(host, ec);
 
 	if (!ec.failed()) {
 		return JavaServer{address, colon_found ? _impl::parse_port(port) : DEFAULT_PORT};
+	}
+
+	// Try SRV lookup
+	try {
+		_impl::SrvRecord record = _impl::pick_record(_impl::resolve_srv("minecraft", "tcp", host));
+		host = record.target;
+		port = std::to_string(record.port);
+	} catch (std::runtime_error& e) {
+		// No SRV records found, continue with normal DNS lookup
 	}
 
 	// Resolve the host
@@ -59,6 +67,10 @@ JavaServer JavaServer::lookup(std::string_view host_address) {
 
 	// Fallback to IPv6 addresses
 	return JavaServer{results.begin()->endpoint()};
+}
+
+std::string JavaServer::to_string() const {
+	return server_address.address().to_string() + ":" + std::to_string(server_address.port());
 }
 
 }  // namespace libmcstatus
