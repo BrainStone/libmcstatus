@@ -2,14 +2,16 @@ find_package(GTest REQUIRED)
 
 # Test executable
 file(GLOB_RECURSE TEST_SOURCES "*.cpp")
+file(GLOB_RECURSE TEST_HEADERS "*.hpp")
 
-add_executable(libmcstatus_tests ${TEST_SOURCES})
+add_executable(libmcstatus_tests ${TEST_SOURCES} ${TEST_HEADERS})
 
 target_link_libraries(libmcstatus_tests
         PRIVATE
         mcstatus
         GTest::gtest
         GTest::gtest_main
+        GTest::gmock
 )
 
 target_include_directories(libmcstatus_tests

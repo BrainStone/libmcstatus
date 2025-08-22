@@ -39,7 +39,8 @@ set_target_properties(mcstatus PROPERTIES
 target_link_libraries(mcstatus
         PUBLIC
         Boost::boost
-        Boost::system
+        PRIVATE
+        resolv
 )
 
 # Include directories for the library
