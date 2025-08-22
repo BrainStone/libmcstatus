@@ -41,13 +41,15 @@ JavaServer JavaServer::lookup(std::string_view host_address) {
 		return JavaServer{address, colon_found ? _impl::parse_port(port) : DEFAULT_PORT};
 	}
 
-	// Try SRV lookup
-	try {
-		_impl::SrvRecord record = _impl::pick_record(_impl::resolve_srv("minecraft", "tcp", host));
-		host = record.target;
-		port = std::to_string(record.port);
-	} catch (std::runtime_error& e) {
-		// No SRV records found, continue with normal DNS lookup
+	// Try SRV lookup if we have a plain hostname (without port)
+	if (!colon_found) {
+		try {
+			_impl::SrvRecord record = _impl::pick_record(_impl::resolve_srv("minecraft", "tcp", host));
+			host = record.target;
+			port = std::to_string(record.port);
+		} catch (std::runtime_error& e) {
+			// No SRV records found, continue with normal DNS lookup
+		}
 	}
 
 	// Resolve the host
