@@ -27,7 +27,7 @@ public:
 
 	static JavaServer lookup(std::string_view host_address);
 
-	std::string to_string() const override;
+	[[nodiscard]] std::string to_string() const override;
 };
 
 }  // namespace libmcstatus
