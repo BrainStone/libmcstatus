@@ -34,9 +34,6 @@ variables:
         - conan install . --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr libmcstatus_$BUILD_TYPE
         - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_TOOLCHAIN_FILE=build/$BUILD_TYPE/generators/conan_toolchain.cmake
         - cmake --build build --config $BUILD_TYPE
-    after_script:
-        - ls -lAh --color build
-        - ls -lAh --color build/$BUILD_TYPE
     artifacts:
         expire_in: 10 mins
         paths:
