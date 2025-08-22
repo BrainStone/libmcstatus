@@ -31,7 +31,7 @@ variables:
     before_script:
         - conan profile detect --force --name=libmcstatus_$BUILD_TYPE
     script:
-        - conan install . --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr libmcstatus_$BUILD_TYPE
+        - conan install . --build=missing -s build_type=$BUILD_TYPE -s compiler.cppstd=20 -pr:a libmcstatus_$BUILD_TYPE
         - cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_TOOLCHAIN_FILE=build/$BUILD_TYPE/generators/conan_toolchain.cmake
         - cmake --build build --config $BUILD_TYPE
     artifacts:
