@@ -60,7 +60,8 @@ records_t resolve_srv(std::string_view service, std::string_view proto, std::str
 	return results;
 }
 
-std::minstd_rand rng{ std::random_device{}()};
+// Initialize the random number generator with an actual random seed
+std::minstd_rand rng{std::random_device{}()};
 
 const SrvRecord& pick_record(const records_t& records) {
 	if (records.empty()) {
@@ -69,19 +70,19 @@ const SrvRecord& pick_record(const records_t& records) {
 
 	using weight_t = std::remove_const_t<decltype(SrvRecord::weight)>;
 
-	const decltype(SrvRecord::priority) lowest_prio = records.begin()->priority;
+	const SrvRecord& first = *records.begin();
 	weight_t total_weight{0};
 
 	for (const SrvRecord& record : records) {
-		if (record.priority == lowest_prio) {
-			total_weight += record.weight;
-		} else {
+		if (record > first) {
 			break;
 		}
+
+		total_weight += record.weight;
 	}
 
 	if (total_weight == 0) {
-		return *records.begin();
+		return first;
 	}
 
 	std::uniform_int_distribution<weight_t> dist{0, total_weight};
@@ -95,7 +96,7 @@ const SrvRecord& pick_record(const records_t& records) {
 		}
 	}
 
-	return *records.begin();
+	return first;
 }
 
 }  // namespace libmcstatus::_impl

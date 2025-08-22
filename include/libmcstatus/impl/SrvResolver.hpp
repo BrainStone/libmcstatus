@@ -16,7 +16,9 @@ struct SrvRecord {
 	const uint16_t port;
 	const std::string target;
 
-	std::weak_ordering operator<=>(const SrvRecord&) const;
+	std::weak_ordering operator<=>(const SrvRecord& rhs) const;
+	// Equality should be based on all fields
+	bool operator==(const SrvRecord& rhs) const = default;
 };
 
 using records_t = std::multiset<SrvRecord>;
