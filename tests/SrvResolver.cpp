@@ -29,7 +29,218 @@ TEST_F(SrvResolverTest, QueryFailsThrows) {
 	EXPECT_THROW({ resolve_srv("minecraft", "tcp", "example.com"); }, std::runtime_error);
 }
 
-// TODO: Test more cases
+TEST_F(SrvResolverTest, QuerySucceedsButParseInitFails) {
+	EXPECT_CALL(mock, res_query(_, _, _, _, _)).WillOnce(Return(512));
+	EXPECT_CALL(mock, ns_initparse(_, _, _)).WillOnce(Return(-1));
+
+	EXPECT_THROW({ resolve_srv("minecraft", "tcp", "example.com"); }, std::runtime_error);
+}
+
+TEST_F(SrvResolverTest, QuerySucceedsButNoAnswerRecords) {
+	ns_msg handle;
+	EXPECT_CALL(mock, res_query(_, _, _, _, _)).WillOnce(Return(512));
+	EXPECT_CALL(mock, ns_initparse(_, _, _)).WillOnce([&](const unsigned char* msg, int msglen, ns_msg* h) {
+		*h = handle;
+		return 0;
+	});
+
+	// Mock no records
+	handle._counts[ns_s_an] = 0;
+
+	auto result = resolve_srv("minecraft", "tcp", "example.com");
+	EXPECT_TRUE(result.empty());
+}
+
+TEST_F(SrvResolverTest, QuerySucceedsWithSingleSrvRecord) {
+	ns_msg handle;
+
+	EXPECT_CALL(mock, res_query(_, _, _, _, _)).WillOnce(Return(512));
+	EXPECT_CALL(mock, ns_initparse(_, _, _)).WillOnce([&](const unsigned char* msg, int msglen, ns_msg* h) {
+		*h = handle;
+		return 0;
+	});
+
+	// Mock a single SRV record
+	handle._counts[ns_s_an] = 1;
+	EXPECT_CALL(mock, ns_parserr(_, ns_s_an, 0, _)).WillOnce([&](ns_msg* handle, ns_sect section, int rrnum, ns_rr* r) {
+		// Simulate SRV record data: priority=10, weight=5, port=25565, target="mc.example.com"
+		static unsigned char srv_data[] = {0x00, 0x0A,  // Priority: 10
+		                                   0x00, 0x05,  // Weight: 5
+		                                   0x63, 0xDD,  // Port: 25565
+		                                   0x02, 'm',  'c', 0x07, 'e', 'x', 'a', 'm',
+		                                   'p',  'l',  'e', 0x03, 'c', 'o', 'm', 0x00};
+		r->type = T_SRV;
+		r->rdlength = sizeof(srv_data);
+		r->rdata = srv_data;
+		handle->_msg = r->rdata;
+		handle->_eom = r->rdata + r->rdlength;
+		return 0;
+	});
+
+	auto result = resolve_srv("minecraft", "tcp", "example.com");
+
+	EXPECT_EQ(result.size(), 1);
+	const auto& record = *result.begin();
+	EXPECT_EQ(record.priority, 10);
+	EXPECT_EQ(record.weight, 5);
+	EXPECT_EQ(record.port, 25565);
+	EXPECT_EQ(record.target, "mc.example.com");
+}
+
+TEST_F(SrvResolverTest, QuerySucceedsWithMultipleSrvRecords) {
+	ns_msg handle;
+
+	EXPECT_CALL(mock, res_query(_, _, _, _, _)).WillOnce(Return(1024));
+	EXPECT_CALL(mock, ns_initparse(_, _, _)).WillOnce([&](const unsigned char* msg, int msglen, ns_msg* h) {
+		*h = handle;
+		return 0;
+	});
+
+	handle._counts[ns_s_an] = 2;
+	
+	// Mock first SRV record: priority=10, weight=5, port=25565, target="mc1.example.com"
+	EXPECT_CALL(mock, ns_parserr(_, ns_s_an, 0, _)).WillOnce([&](ns_msg* handle, ns_sect section, int rrnum, ns_rr* r) {
+		static unsigned char srv_data1[] = {0x00, 0x0A,  // Priority: 10
+		                                    0x00, 0x05,  // Weight: 5
+		                                    0x63, 0xDD,  // Port: 25565
+		                                    0x03, 'm',  'c', '1',  0x07, 'e', 'x', 'a', 'm',
+		                                    'p',  'l',  'e', 0x03, 'c',  'o', 'm', 0x00};
+		r->type = ns_t_srv;
+		r->rdlength = sizeof(srv_data1);
+		r->rdata = srv_data1;
+		handle->_msg = r->rdata;
+		handle->_eom = r->rdata + r->rdlength;
+		return 0;
+	});
+
+	// Mock second SRV record: priority=5, weight=10, port=25566, target="mc2.example.com"
+	EXPECT_CALL(mock, ns_parserr(_, ns_s_an, 1, _)).WillOnce([&](ns_msg* handle, ns_sect section, int rrnum, ns_rr* r) {
+		static unsigned char srv_data2[] = {0x00, 0x05,  // Priority: 5
+		                                    0x00, 0x0A,  // Weight: 10
+		                                    0x63, 0xDE,  // Port: 25566
+		                                    0x03, 'm',  'c', '2',  0x07, 'e', 'x', 'a', 'm',
+		                                    'p',  'l',  'e', 0x03, 'c',  'o', 'm', 0x00};
+		r->type = ns_t_srv;
+		r->rdlength = sizeof(srv_data2);
+		r->rdata = srv_data2;
+		handle->_msg = r->rdata;
+		handle->_eom = r->rdata + r->rdlength;
+		return 0;
+	});
+
+	auto result = resolve_srv("minecraft", "tcp", "example.com");
+
+	EXPECT_EQ(result.size(), 2);
+
+	// Records should be sorted by priority (5 comes before 10)
+	auto it = result.begin();
+	EXPECT_EQ(it->priority, 5);
+	EXPECT_EQ(it->weight, 10);
+	EXPECT_EQ(it->port, 25566);
+	EXPECT_EQ(it->target, "mc2.example.com");
+
+	++it;
+	EXPECT_EQ(it->priority, 10);
+	EXPECT_EQ(it->weight, 5);
+	EXPECT_EQ(it->port, 25565);
+	EXPECT_EQ(it->target, "mc1.example.com");
+}
+
+TEST_F(SrvResolverTest, QuerySucceedsWithNonSrvRecordsIgnored) {
+	ns_msg handle;
+
+	EXPECT_CALL(mock, res_query(_, _, _, _, _)).WillOnce(Return(512));
+	EXPECT_CALL(mock, ns_initparse(_, _, _)).WillOnce([&](const unsigned char* msg, int msglen, ns_msg* h) {
+		*h = handle;
+		return 0;
+	});
+	
+	handle._counts[ns_s_an] = 2;
+
+	// Mock first record as A record (should be ignored)
+	EXPECT_CALL(mock, ns_parserr(_, ns_s_an, 0, _)).WillOnce([&](ns_msg* handle, ns_sect section, int rrnum, ns_rr* r) {
+		r->type = ns_t_a;  // A record, not SRV
+		return 0;
+	});
+
+	// Mock second record as proper SRV record
+	EXPECT_CALL(mock, ns_parserr(_, ns_s_an, 1, _)).WillOnce([&](ns_msg* handle, ns_sect section, int rrnum, ns_rr* r) {
+		static unsigned char srv_data[] = {0x00, 0x0A,  // Priority: 10
+		                                   0x00, 0x05,  // Weight: 5
+		                                   0x63, 0xDD,  // Port: 25565
+		                                   0x02, 'm',  'c', 0x07, 'e', 'x', 'a', 'm',
+		                                   'p',  'l',  'e', 0x03, 'c', 'o', 'm', 0x00};
+		r->type = ns_t_srv;
+		r->rdlength = sizeof(srv_data);
+		r->rdata = srv_data;
+		handle->_msg = r->rdata;
+		handle->_eom = r->rdata + r->rdlength;
+		return 0;
+	});
+
+	auto result = resolve_srv("minecraft", "tcp", "example.com");
+
+	// Should only contain the SRV record, A record should be ignored
+	EXPECT_EQ(result.size(), 1);
+	const auto& record = *result.begin();
+	EXPECT_EQ(record.priority, 10);
+	EXPECT_EQ(record.weight, 5);
+	EXPECT_EQ(record.port, 25565);
+	EXPECT_EQ(record.target, "mc.example.com");
+}
+
+TEST_F(SrvResolverTest, QuerySucceedsWithMalformedSrvRecordIgnored) {
+	ns_msg handle;
+
+	EXPECT_CALL(mock, res_query(_, _, _, _, _)).WillOnce(Return(512));
+	EXPECT_CALL(mock, ns_initparse(_, _, _)).WillOnce([&](const unsigned char* msg, int msglen, ns_msg* h) {
+		*h = handle;
+		return 0;
+	});
+
+	// Mock SRV record with insufficient data length (should be ignored)
+	handle._counts[ns_s_an] = 1;
+	EXPECT_CALL(mock, ns_parserr(_, ns_s_an, 0, _)).WillOnce([&](ns_msg* handle, ns_sect section, int rrnum, ns_rr* r) {
+		static unsigned char srv_data[] = {0x00, 0x0A, 0x00, 0x05};  // Only 4 bytes, need at least 6
+		r->type = ns_t_srv;
+		r->rdlength = sizeof(srv_data);
+		r->rdata = srv_data;
+		handle->_msg = r->rdata;
+		handle->_eom = r->rdata + r->rdlength;
+		return 0;
+	});
+
+	auto result = resolve_srv("minecraft", "tcp", "example.com");
+
+	// Should be empty since the malformed record was ignored
+	EXPECT_TRUE(result.empty());
+}
+
+TEST_F(SrvResolverTest, QueryWithDifferentServiceAndProtocol) {
+	EXPECT_CALL(mock, res_query(_, _, _, _, _))
+	    .WillOnce([](const char* dname, int class_, int type, unsigned char* answer, int anslen) {
+		    // Verify the query name is correctly formatted
+		    std::string query_name(dname);
+		    EXPECT_EQ(query_name, "_http._tcp.example.org");
+		    EXPECT_EQ(class_, ns_c_in);
+		    EXPECT_EQ(type, ns_t_srv);
+		    return -1;  // Fail the query to avoid complex mocking
+	    });
+
+	EXPECT_THROW({ resolve_srv("http", "tcp", "example.org"); }, std::runtime_error);
+}
+
+TEST_F(SrvResolverTest, QueryWithUDPProtocol) {
+	EXPECT_CALL(mock, res_query(_, _, _, _, _))
+	    .WillOnce([](const char* dname, int class_, int type, unsigned char* answer, int anslen) {
+		    // Verify the query name is correctly formatted for UDP
+		    std::string query_name(dname);
+		    EXPECT_EQ(query_name, "_sip._udp.voip.example.net");
+		    return -1;  // Fail the query to avoid complex mocking
+	    });
+
+	EXPECT_THROW({ resolve_srv("sip", "udp", "voip.example.net"); }, std::runtime_error);
+}
 
 // =====================================================================================================================
 constexpr int base_num_trials = 10'000;

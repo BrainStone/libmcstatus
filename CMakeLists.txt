@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Conan integration
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
 
 # Library options
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -38,7 +38,7 @@ set_target_properties(mcstatus PROPERTIES
 # Link dependencies
 target_link_libraries(mcstatus
         PUBLIC
-        Boost::boost
+        Boost::system
         PRIVATE
         resolv
 )

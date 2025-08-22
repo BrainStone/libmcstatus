@@ -32,10 +32,10 @@ records_t resolve_srv(std::string_view service, std::string_view proto, std::str
 		throw std::runtime_error("ns_initparse failed");
 	}
 
-	int count = ns_msg_count(handle, ns_s_an);
+	std::uint16_t count = ns_msg_count(handle, ns_s_an);
 	records_t results;
 
-	for (int i = 0; i < count; i++) {
+	for (std::uint16_t i = 0; i < count; i++) {
 		ns_rr rr;
 		if (ns_parserr(&handle, ns_s_an, i, &rr) < 0) {
 			continue;  // skip malformed
