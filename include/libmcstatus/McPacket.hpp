@@ -4,6 +4,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -14,10 +15,26 @@ class McPacket {
 public:
 	using buffer_t = std::vector<std::uint8_t>;
 	using buffer_iterator_t = buffer_t::const_iterator;
+	using head_offset_t = buffer_iterator_t::difference_type;
+
+	class PacketError : public std::runtime_error {
+	public:
+		using std::runtime_error::runtime_error;
+	};
+
+	class PacketEncodingError : public PacketError {
+	public:
+		using PacketError::PacketError;
+	};
+
+	class PacketDecodingError : public PacketError {
+	public:
+		using PacketError::PacketError;
+	};
 
 protected:
 	buffer_t buffer;
-	std::size_t head_offset;
+	head_offset_t head_offset;
 
 	explicit McPacket(const std::vector<std::uint8_t>& buffer);
 

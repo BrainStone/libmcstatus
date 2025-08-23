@@ -10,7 +10,7 @@ using namespace libmcstatus;
 
 class McPacketAccessor : public McPacket {
 public:
-	McPacketAccessor(const buffer_t& buffer) : McPacket{buffer} {}
+	explicit McPacketAccessor(const buffer_t& buffer) : McPacket{buffer} {}
 };
 
 // Test constructors
@@ -29,7 +29,7 @@ TEST(McPacketTest, Reset) {
 	// Read one value
 	EXPECT_EQ(packet.read_bool(), true);
 
-	// Reset and read from beginning again
+	// Reset and read from the beginning again
 	packet.reset();
 	EXPECT_EQ(packet.read_bool(), true);
 	EXPECT_EQ(packet.read_bool(), false);
@@ -53,17 +53,17 @@ TEST(McPacketTest, ReadVarintUnexpectedEnd) {
 	McPacket packet{};
 
 	// Test reading varint from empty buffer
-	EXPECT_THROW(std::ignore = packet.read_varint(), std::runtime_error);
+	EXPECT_THROW(std::ignore = packet.read_varint(), McPacket::PacketDecodingError);
 
 	// Test reading incomplete varint
 	packet = McPacketAccessor{{0x80}};
-	EXPECT_THROW(std::ignore = packet.read_varint(), std::runtime_error);
+	EXPECT_THROW(std::ignore = packet.read_varint(), McPacket::PacketDecodingError);
 }
 
 TEST(McPacketTest, ReadVarintTooBig) {
 	McPacket packet = McPacketAccessor{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x80}};
 
-	EXPECT_THROW(std::ignore = packet.read_varint(), std::runtime_error);
+	EXPECT_THROW(std::ignore = packet.read_varint(), McPacket::PacketDecodingError);
 }
 
 // Test varlong functionality
@@ -82,13 +82,13 @@ TEST(McPacketTest, WriteReadVarlong) {
 TEST(McPacketTest, ReadVarlongUnexpectedEnd) {
 	McPacket packet{};
 
-	EXPECT_THROW(std::ignore = packet.read_varlong(), std::runtime_error);
+	EXPECT_THROW(std::ignore = packet.read_varlong(), McPacket::PacketDecodingError);
 }
 
 TEST(McPacketTest, ReadVarlongTooBig) {
 	McPacket packet = McPacketAccessor{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x80}};
 
-	EXPECT_THROW(std::ignore = packet.read_varlong(), std::runtime_error);
+	EXPECT_THROW(std::ignore = packet.read_varlong(), McPacket::PacketDecodingError);
 }
 
 // Test string functionality
@@ -210,7 +210,7 @@ TEST(McPacketTest, WriteToBuffer) {
 }
 
 TEST(McPacketTest, ReadFromBuffer) {
-	// Create a buffer manually with length prefix
+	// Create a buffer manually with a length prefix
 	std::vector<std::uint8_t> buffer;
 
 	// Add length (3 bytes: 1 byte for bool, 2 bytes for short)
@@ -225,6 +225,22 @@ TEST(McPacketTest, ReadFromBuffer) {
 
 	EXPECT_EQ(reconstructed.read_bool(), true);
 	EXPECT_EQ(reconstructed.read_short(), 1337);
+}
+
+TEST(McPacketTest, ReadFromBufferShorterThanExpected) {
+	// Create a buffer with length that claims more data than actually present
+	std::vector<std::uint8_t> buffer;
+
+	// Add length claiming 5 bytes of data
+	buffer.push_back(5);
+
+	// But only add 3 bytes of actual data
+	buffer.push_back(1);  // byte 1
+	buffer.push_back(2);  // byte 2
+	buffer.push_back(3);  // byte 3
+
+	// Should throw runtime_error because the buffer is shorter than expected
+	EXPECT_THROW(std::ignore = McPacket::read_from_buffer(buffer), McPacket::PacketDecodingError);
 }
 
 // Test mixed operations

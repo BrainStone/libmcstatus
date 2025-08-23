@@ -3,9 +3,10 @@
 #include <algorithm>
 #include <bit>
 #include <concepts>
-#include <stdexcept>
 
 namespace libmcstatus {
+
+namespace _impl {
 
 template <std::integral T>
 void write_int_be(McPacket::buffer_t& buffer, T value) {
@@ -18,16 +19,16 @@ void write_int_be(McPacket::buffer_t& buffer, T value) {
 #pragma clang diagnostic pop
 
 	constexpr std::size_t bytes = sizeof(T);
-	const std::uint8_t* ptr = reinterpret_cast<std::uint8_t*>(&value);
+	auto* ptr = reinterpret_cast<const std::uint8_t*>(&value);
 
 	buffer.insert(buffer.end(), ptr, ptr + bytes);
 }
 
 template <std::integral T>
-T read_int_be(const McPacket::buffer_iterator_t& head, std::size_t& head_offset) {
+T read_int_be(const McPacket::buffer_iterator_t& head, McPacket::head_offset_t& head_offset) {
 	constexpr std::size_t bytes = sizeof(T);
 	T value;
-	std::uint8_t* ptr = reinterpret_cast<std::uint8_t*>(&value);
+	auto* ptr = reinterpret_cast<std::uint8_t*>(&value);
 
 	std::copy_n(head, bytes, ptr);
 	head_offset += bytes;
@@ -42,6 +43,8 @@ T read_int_be(const McPacket::buffer_iterator_t& head, std::size_t& head_offset)
 
 	return value;
 }
+
+}  // namespace _impl
 
 McPacket::McPacket(const std::vector<std::uint8_t>& buffer) : buffer{buffer}, head_offset{0} {}
 
@@ -63,7 +66,7 @@ void McPacket::reset() {
 }
 
 void McPacket::write_varint(std::int32_t value) {
-	std::uint32_t remaining = static_cast<std::uint32_t>(value);
+	auto remaining = static_cast<std::uint32_t>(value);
 
 	for (int i = 0; i < 5; ++i) {
 		if ((remaining & ~0x7F) == 0) {
@@ -75,11 +78,12 @@ void McPacket::write_varint(std::int32_t value) {
 		remaining >>= 7;
 	}
 
-	throw std::runtime_error("The value \"" + std::to_string(value) + "\" is too big to send in a varint");
+	// This should never happen, but just in case
+	throw PacketEncodingError{"The value \"" + std::to_string(value) + "\" is too big to send in a varint"};
 }
 
 void McPacket::write_varlong(std::int64_t value) {
-	std::uint64_t remaining = static_cast<std::uint64_t>(value);
+	auto remaining = static_cast<std::uint64_t>(value);
 
 	for (int i = 0; i < 10; ++i) {
 		if ((remaining & ~0x7F) == 0) {
@@ -90,12 +94,13 @@ void McPacket::write_varlong(std::int64_t value) {
 		remaining >>= 7;
 	}
 
-	throw std::runtime_error("The value \"" + std::to_string(value) + "\" is too big to send in a varlong");
+	// This should never happen, but just in case
+	throw PacketEncodingError{"The value \"" + std::to_string(value) + "\" is too big to send in a varlong"};
 }
 
 void McPacket::write_utf(std::string_view value) {
 	// We really don't have a concept of encodings, so we just store the string as-is with a varint length prefix
-	write_varint(value.size());
+	write_varint(static_cast<std::int32_t>(value.size()));
 	buffer.insert(buffer.end(), value.begin(), value.end());
 }
 
@@ -106,27 +111,27 @@ void McPacket::write_ascii(std::string_view value) {
 }
 
 void McPacket::write_short(std::int16_t value) {
-	write_int_be(buffer, value);
+	_impl::write_int_be(buffer, value);
 }
 
 void McPacket::write_ushort(std::uint16_t value) {
-	write_int_be(buffer, value);
+	_impl::write_int_be(buffer, value);
 }
 
 void McPacket::write_int(std::int32_t value) {
-	write_int_be(buffer, value);
+	_impl::write_int_be(buffer, value);
 }
 
 void McPacket::write_uint(std::uint32_t value) {
-	write_int_be(buffer, value);
+	_impl::write_int_be(buffer, value);
 }
 
 void McPacket::write_long(std::int64_t value) {
-	write_int_be(buffer, value);
+	_impl::write_int_be(buffer, value);
 }
 
 void McPacket::write_ulong(std::uint64_t value) {
-	write_int_be(buffer, value);
+	_impl::write_int_be(buffer, value);
 }
 
 void McPacket::write_bool(bool value) {
@@ -135,7 +140,7 @@ void McPacket::write_bool(bool value) {
 
 auto McPacket::write_to_buffer() -> buffer_t {
 	McPacket length_packet{};
-	length_packet.write_varint(buffer.size());
+	length_packet.write_varint(static_cast<std::int32_t>(buffer.size()));
 
 	length_packet.buffer.insert(length_packet.buffer.end(), buffer.begin(), buffer.end());
 
@@ -159,7 +164,7 @@ std::int32_t McPacket::read_varint() {
 
 	for (int i = 0; i < 5; ++i) {
 		if (eof()) {
-			throw std::runtime_error("Unexpected end of buffer while reading varint");
+			throw PacketDecodingError{"Unexpected end of buffer while reading varint"};
 		}
 
 		std::uint8_t part = *advance_head();
@@ -170,7 +175,7 @@ std::int32_t McPacket::read_varint() {
 		}
 	}
 
-	throw std::runtime_error("Received varint is too big!");
+	throw PacketDecodingError{"Received varint is too big!"};
 }
 
 std::int64_t McPacket::read_varlong() {
@@ -178,7 +183,7 @@ std::int64_t McPacket::read_varlong() {
 
 	for (int i = 0; i < 10; ++i) {
 		if (eof()) {
-			throw std::runtime_error("Unexpected end of buffer while reading varlong");
+			throw PacketDecodingError{"Unexpected end of buffer while reading varlong"};
 		}
 
 		std::uint8_t part = *advance_head();
@@ -189,7 +194,7 @@ std::int64_t McPacket::read_varlong() {
 		}
 	}
 
-	throw std::runtime_error("Received varlong is too big!");
+	throw PacketDecodingError{"Received varlong is too big!"};
 }
 
 std::string McPacket::read_utf() {
@@ -201,8 +206,8 @@ std::string McPacket::read_utf() {
 }
 
 std::string McPacket::read_ascii() {
-	const buffer_iterator_t head = get_head();
-	const buffer_iterator_t it = std::find(head, buffer.cend(), '\0');
+	const auto head = get_head();
+	const auto it = std::find(head, buffer.cend(), '\0');
 	std::string res{head, it};
 
 	head_offset += (it - head) + 1;
@@ -210,27 +215,27 @@ std::string McPacket::read_ascii() {
 }
 
 std::int16_t McPacket::read_short() {
-	return read_int_be<std::int16_t>(get_head(), head_offset);
+	return _impl::read_int_be<std::int16_t>(get_head(), head_offset);
 }
 
 std::uint16_t McPacket::read_ushort() {
-	return read_int_be<std::uint16_t>(get_head(), head_offset);
+	return _impl::read_int_be<std::uint16_t>(get_head(), head_offset);
 }
 
 std::int32_t McPacket::read_int() {
-	return read_int_be<std::int32_t>(get_head(), head_offset);
+	return _impl::read_int_be<std::int32_t>(get_head(), head_offset);
 }
 
 std::uint32_t McPacket::read_uint() {
-	return read_int_be<std::uint32_t>(get_head(), head_offset);
+	return _impl::read_int_be<std::uint32_t>(get_head(), head_offset);
 }
 
 std::int64_t McPacket::read_long() {
-	return read_int_be<std::int64_t>(get_head(), head_offset);
+	return _impl::read_int_be<std::int64_t>(get_head(), head_offset);
 }
 
 std::uint64_t McPacket::read_ulong() {
-	return read_int_be<std::uint64_t>(get_head(), head_offset);
+	return _impl::read_int_be<std::uint64_t>(get_head(), head_offset);
 }
 
 bool McPacket::read_bool() {
@@ -240,6 +245,10 @@ bool McPacket::read_bool() {
 McPacket McPacket::read_from_buffer(const buffer_t& buffer) {
 	McPacket length_packet{buffer};
 	std::int32_t length = length_packet.read_varint();
+
+	if ((length_packet.head_offset + length) > buffer.size()) {
+		throw PacketDecodingError{"Received packet is shorter than expected!"};
+	}
 
 	return McPacket{length_packet.get_head(), length_packet.get_head() + length};
 }
@@ -257,4 +266,4 @@ McPacket McPacket::read_from_socket(boost::asio::ip::udp::socket& socket) {
 	return read_from_buffer(buffer);
 }
 
-}  // namespace libmcstatus::_impl
+}  // namespace libmcstatus
