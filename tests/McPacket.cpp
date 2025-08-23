@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 
 using namespace libmcstatus;
@@ -243,6 +244,77 @@ TEST(McPacketTest, ReadFromBufferShorterThanExpected) {
 	EXPECT_THROW(std::ignore = McPacket::read_from_buffer(buffer), McPacket::PacketDecodingError);
 }
 
+// Test UTF string reading with bounds checking
+TEST(McPacketTest, ReadUtfShorterThanExpected) {
+	// Create packet manually with incorrect length
+	std::vector<std::uint8_t> buffer;
+	buffer.push_back(10);                                    // Claims 10 bytes
+	buffer.insert(buffer.end(), {'H', 'e', 'l', 'l', 'o'});  // Only 5 bytes
+
+	McPacket test_packet = McPacketAccessor{buffer};
+
+	EXPECT_THROW(std::ignore = test_packet.read_utf(), McPacket::PacketDecodingError);
+}
+
+// Test ASCII reading edge cases
+TEST(McPacketTest, ReadAsciiEdgeCases) {
+	// Test ASCII string without null terminator
+	std::vector<std::uint8_t> buffer = {'H', 'e', 'l', 'l', 'o'};  // No null terminator
+	McPacket packet = McPacketAccessor{buffer};
+
+	// This should read until end of buffer and include the missing null byte in head_offset
+	std::string result = packet.read_ascii();
+	EXPECT_EQ(result, "Hello");
+	EXPECT_TRUE(packet.eof());  // Should be at end after reading
+}
+
+// Test mixed read operations with bounds checking
+TEST(McPacketTest, MixedReadWithBoundsChecking) {
+	McPacket packet{};
+
+	// Write some data
+	packet.write_varint(42);
+	packet.write_utf("test");
+	packet.write_bool(true);
+
+	// Read normally
+	EXPECT_EQ(packet.read_varint(), 42);
+	EXPECT_EQ(packet.read_utf(), "test");
+	EXPECT_EQ(packet.read_bool(), true);
+
+	// Try to read beyond end
+	EXPECT_THROW(std::ignore = packet.read_varint(), McPacket::PacketDecodingError);
+}
+
+// Test thread-local buffer behavior (basic test)
+TEST(McPacketTest, ThreadLocalBufferBasic) {
+	// This test is more about ensuring the code compiles and runs
+	// The thread-local buffer is an implementation detail, but we can test
+	// that multiple socket operations work correctly
+
+	boost::asio::io_context io_context;
+	boost::asio::ip::tcp::acceptor acceptor(io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
+	auto server_endpoint = acceptor.local_endpoint();
+
+	boost::asio::ip::tcp::socket server_socket(io_context);
+	boost::asio::ip::tcp::socket client_socket(io_context);
+
+	client_socket.connect(server_endpoint);
+	acceptor.accept(server_socket);
+
+	// Send multiple packets to test buffer reuse
+	for (int i = 0; i < 3; ++i) {
+		McPacket write_packet;
+		write_packet.write_varint(i);
+		write_packet.write_utf("packet_" + std::to_string(i));
+		write_packet.write_to_socket(client_socket);
+
+		McPacket read_packet = McPacket::read_from_socket(server_socket);
+		EXPECT_EQ(read_packet.read_varint(), i);
+		EXPECT_EQ(read_packet.read_utf(), "packet_" + std::to_string(i));
+	}
+}
+
 // Test mixed operations
 TEST(McPacketTest, MixedWriteRead) {
 	McPacket packet{};
@@ -335,6 +407,47 @@ TEST(McPacketSocketTest, TcpWriteAndRead) {
 	EXPECT_EQ(read_packet.read_utf(), "Hello World");
 }
 
+// Test UDP max size handling
+TEST(McPacketTest, TcpLargeSizeHandling) {
+	boost::asio::io_context io_context;
+	boost::asio::ip::tcp::acceptor acceptor(io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
+	
+	auto server_endpoint = acceptor.local_endpoint();
+
+	// Server socket
+	boost::asio::ip::tcp::socket server_socket(io_context);
+
+	// Client socket
+	boost::asio::ip::tcp::socket client_socket(io_context);
+	client_socket.connect(server_endpoint);
+	acceptor.accept(server_socket);
+
+	// Test with a reasonably large packet (but within UDP limits)
+	McPacket write_packet;
+	write_packet.write_varint(12345);
+	std::string large_string(10000, 'X');  // 10KB string
+	write_packet.write_utf(large_string);
+
+	bool send_completed = false;
+	auto buffer = write_packet.write_to_buffer();
+	client_socket.async_send(boost::asio::buffer(buffer),
+	                         [&send_completed](const boost::system::error_code& error, std::size_t bytes_transferred) {
+		                         EXPECT_FALSE(error) << "Send error: " << error.message();
+		                         send_completed = true;
+	                         });
+
+	std::thread io_thread([&io_context, &send_completed]() {
+		io_context.run();
+		EXPECT_TRUE(send_completed);
+	});
+
+	McPacket read_packet = McPacket::read_from_socket(server_socket);
+	io_thread.join();
+
+	EXPECT_EQ(read_packet.read_varint(), 12345);
+	EXPECT_EQ(read_packet.read_utf(), large_string);
+}
+
 TEST(McPacketSocketTest, UdpWriteAndRead) {
 	boost::asio::io_context io_context;
 
@@ -358,4 +471,30 @@ TEST(McPacketSocketTest, UdpWriteAndRead) {
 
 	EXPECT_EQ(read_packet.read_varint(), 42);
 	EXPECT_EQ(read_packet.read_utf(), "Hello World");
+}
+
+// Test UDP max size handling
+TEST(McPacketTest, UdpMaxSizeHandling) {
+	boost::asio::io_context io_context;
+
+	boost::asio::ip::udp::socket server_socket(io_context,
+	                                           boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0));
+	auto server_endpoint = server_socket.local_endpoint();
+
+	boost::asio::ip::udp::socket client_socket(io_context);
+	client_socket.open(boost::asio::ip::udp::v4());
+	client_socket.connect(server_endpoint);
+
+	// Test with a reasonably large packet (but within UDP limits)
+	McPacket write_packet;
+	write_packet.write_varint(12345);
+	std::string large_string(65000, 'X');  // 65KB string
+	write_packet.write_utf(large_string);
+
+	write_packet.write_to_socket(client_socket);
+
+	McPacket read_packet = McPacket::read_from_socket(server_socket);
+
+	EXPECT_EQ(read_packet.read_varint(), 12345);
+	EXPECT_EQ(read_packet.read_utf(), large_string);
 }

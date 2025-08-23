@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <bit>
+#include <boost/asio/read.hpp>
 #include <concepts>
+#include <iostream>
 
 namespace libmcstatus {
 
@@ -199,6 +201,11 @@ std::int64_t McPacket::read_varlong() {
 
 std::string McPacket::read_utf() {
 	const std::int32_t length = read_varint();
+
+	if ((head_offset + length) > buffer.size()) {
+		throw PacketDecodingError{"Received packet is shorter than expected while reading UTF string"};
+	}
+
 	std::string res{get_head(), get_head() + length};
 
 	head_offset += length;
@@ -247,44 +254,48 @@ McPacket McPacket::read_from_buffer(const buffer_t& buffer) {
 	std::int32_t length = length_packet.read_varint();
 
 	if ((length_packet.head_offset + length) > buffer.size()) {
-		throw PacketDecodingError{"Received packet is shorter than expected!"};
+		throw PacketDecodingError{"Received packet is shorter than expected"};
 	}
 
 	return McPacket{length_packet.get_head(), length_packet.get_head() + length};
 }
 
+// Thread-local static buffer for reading packets into. Using this allows us to avoid allocating a new buffer for each
+// packet. It is often resized to fit the actual packet size, however the capacity should never change.
+thread_local static McPacket::buffer_t package_buffer;
+
 McPacket McPacket::read_from_socket(boost::asio::ip::tcp::socket& socket) {
-	// Check how much data is available
-	boost::system::error_code ec;
-	std::size_t buffer_size = socket.available(ec);
+	package_buffer.resize(0);
 
-	if (ec.failed() || buffer_size == 0) {
-		// Fallback: use a reasonable maximum packet size
-		buffer_size = 1024 * 1024 * 1024;  // 1 MiB
+	while (true) {
+		try {
+			boost::asio::read(socket, boost::asio::dynamic_buffer(package_buffer), boost::asio::transfer_at_least(1));
+
+			return read_from_buffer(package_buffer);
+		} catch (const PacketDecodingError& error) {
+			// Rethrow if the error is not due to an unexpected end of buffer and the packet being too short
+			if ((error.what() != std::string{"Unexpected end of buffer while reading varint"}) &&
+			    (error.what() != std::string{"Received packet is shorter than expected"}))
+				throw;
+			// Otherwise, continue reading
+		}
 	}
-
-	buffer_t buffer(buffer_size);
-	socket.read_some(boost::asio::buffer(buffer));
-
-	return read_from_buffer(buffer);
 }
+
 McPacket McPacket::read_from_socket(boost::asio::ip::udp::socket& socket) {
-	// Check the size of the next UDP datagram
-	boost::system::error_code ec;
-	std::size_t datagram_size = socket.available(ec);
+	constexpr std::size_t UDP_MAX_SIZE = 65507;
 
-	if (ec.failed() || datagram_size == 0) {
-		// Fallback: use a reasonable maximum UDP size
-		datagram_size = 65507;  // Max UDP payload size
+	// Reserve max UDP size if not already done, then resize to said size
+	if (package_buffer.capacity() < UDP_MAX_SIZE) {
+		package_buffer.reserve(UDP_MAX_SIZE);
 	}
+	package_buffer.resize(UDP_MAX_SIZE);
 
-	buffer_t buffer(datagram_size);
-	std::size_t received = socket.receive(boost::asio::buffer(buffer));
+	// Receive data from socket and resize buffer to actual size (doesn't change capacity)
+	std::size_t received = socket.receive(boost::asio::buffer(package_buffer));
+	package_buffer.resize(received);
 
-	// Resize buffer to actual received size
-	buffer.resize(received);
-
-	return read_from_buffer(buffer);
+	return read_from_buffer(package_buffer);
 }
 
 }  // namespace libmcstatus

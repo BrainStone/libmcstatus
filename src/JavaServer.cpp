@@ -18,7 +18,8 @@ JavaServer::JavaServer(const boost::asio::ip::address& ip_address, boost::asio::
 void JavaServer::handshake(boost::asio::ip::tcp::socket& socket) const {
 	McPacket packet;
 	packet.write_varint(0);
-	packet.write_varint(47);  // Protocol version
+	packet.write_varint(47);  // Protocol version (this is 1.8-1.8.9, since this is the last time the basic
+	                          // protocol was changed)
 	packet.write_utf(server_address.address().to_string());
 	packet.write_ushort(server_address.port());
 	packet.write_varint(1);  // Intention to query status
@@ -31,10 +32,10 @@ std::chrono::high_resolution_clock::duration JavaServer::ping(std::chrono::milli
 	static std::uniform_int_distribution<std::int64_t> dist{0, std::numeric_limits<std::int64_t>::max()};
 
 	boost::asio::io_context io_context;
-	boost::asio::ip::tcp::socket socket(io_context);
 
 	for (std::size_t attempt = 1;; ++attempt) {
 		try {
+			boost::asio::ip::tcp::socket socket(io_context);
 			socket.connect(server_address);
 			handshake(socket);
 
@@ -73,10 +74,10 @@ std::chrono::high_resolution_clock::duration JavaServer::ping(std::chrono::milli
 
 void JavaServer::status(std::chrono::milliseconds timeout) const {
 	boost::asio::io_context io_context;
-	boost::asio::ip::tcp::socket socket(io_context);
 
 	for (std::size_t attempt = 1;; ++attempt) {
 		try {
+			boost::asio::ip::tcp::socket socket(io_context);
 			socket.connect(server_address);
 			handshake(socket);
 
