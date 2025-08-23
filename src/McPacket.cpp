@@ -254,14 +254,35 @@ McPacket McPacket::read_from_buffer(const buffer_t& buffer) {
 }
 
 McPacket McPacket::read_from_socket(boost::asio::ip::tcp::socket& socket) {
-	buffer_t buffer;
+	// Check how much data is available
+	boost::system::error_code ec;
+	std::size_t buffer_size = socket.available(ec);
+
+	if (ec.failed() || buffer_size == 0) {
+		// Fallback: use a reasonable maximum packet size
+		buffer_size = 1024 * 1024 * 1024;  // 1 MiB
+	}
+
+	buffer_t buffer(buffer_size);
 	socket.read_some(boost::asio::buffer(buffer));
 
 	return read_from_buffer(buffer);
 }
 McPacket McPacket::read_from_socket(boost::asio::ip::udp::socket& socket) {
-	buffer_t buffer;
-	socket.receive(boost::asio::buffer(buffer));
+	// Check the size of the next UDP datagram
+	boost::system::error_code ec;
+	std::size_t datagram_size = socket.available(ec);
+
+	if (ec.failed() || datagram_size == 0) {
+		// Fallback: use a reasonable maximum UDP size
+		datagram_size = 65507;  // Max UDP payload size
+	}
+
+	buffer_t buffer(datagram_size);
+	std::size_t received = socket.receive(boost::asio::buffer(buffer));
+
+	// Resize buffer to actual received size
+	buffer.resize(received);
 
 	return read_from_buffer(buffer);
 }

@@ -290,3 +290,55 @@ TEST(McPacketTest, RoundTripThroughBuffer) {
 	EXPECT_EQ(reconstructed.read_bool(), true);
 	EXPECT_EQ(reconstructed.read_long(), -9876543210LL);
 }
+
+TEST(McPacketSocketTest, TcpWriteAndRead) {
+	boost::asio::io_context io_context;
+	boost::asio::ip::tcp::acceptor acceptor(io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
+
+	auto server_endpoint = acceptor.local_endpoint();
+
+	// Server socket
+	boost::asio::ip::tcp::socket server_socket(io_context);
+
+	// Client socket
+	boost::asio::ip::tcp::socket client_socket(io_context);
+	client_socket.connect(server_endpoint);
+	acceptor.accept(server_socket);
+
+	// Test writing from client and reading on server
+	McPacket write_packet;
+	write_packet.write_varint(42);
+	write_packet.write_utf("Hello World");
+
+	write_packet.write_to_socket(client_socket);
+
+	McPacket read_packet = McPacket::read_from_socket(server_socket);
+
+	EXPECT_EQ(read_packet.read_varint(), 42);
+	EXPECT_EQ(read_packet.read_utf(), "Hello World");
+}
+
+TEST(McPacketSocketTest, UdpWriteAndRead) {
+	boost::asio::io_context io_context;
+
+	// Server socket
+	boost::asio::ip::udp::socket server_socket(io_context,
+	                                           boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0));
+	auto server_endpoint = server_socket.local_endpoint();
+
+	// Client socket
+	boost::asio::ip::udp::socket client_socket(io_context);
+	client_socket.open(boost::asio::ip::udp::v4());
+	client_socket.connect(server_endpoint);
+
+	// Test the UDP methods
+	McPacket write_packet;
+	write_packet.write_varint(42);
+	write_packet.write_utf("Hello World");
+	write_packet.write_to_socket(client_socket);
+
+	McPacket read_packet = McPacket::read_from_socket(server_socket);
+
+	EXPECT_EQ(read_packet.read_varint(), 42);
+	EXPECT_EQ(read_packet.read_utf(), "Hello World");
+}
