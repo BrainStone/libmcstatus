@@ -12,6 +12,8 @@ namespace libmcstatus {
 class JavaServer : public McServer {
 private:
 	boost::asio::ip::tcp::endpoint server_address;
+	
+	void handshake(boost::asio::ip::tcp::socket& socket) const;
 
 public:
 	static constexpr boost::asio::ip::port_type DEFAULT_PORT{25565};

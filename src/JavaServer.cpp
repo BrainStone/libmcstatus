@@ -1,7 +1,12 @@
 #include "libmcstatus/JavaServer.hpp"
 
+#include <iostream>
+#include <limits>
+#include <random>
+
 #include "libmcstatus/impl/SrvResolver.hpp"
 #include "libmcstatus/impl/Utils.hpp"
+#include "libmcstatus/McPacket.hpp"
 
 namespace libmcstatus {
 
@@ -10,25 +15,97 @@ JavaServer::JavaServer(boost::asio::ip::tcp::endpoint server_address) : server_a
 JavaServer::JavaServer(const boost::asio::ip::address& ip_address, boost::asio::ip::port_type port)
     : server_address{ip_address, port} {}
 
+void JavaServer::handshake(boost::asio::ip::tcp::socket& socket) const {
+	McPacket packet;
+	packet.write_varint(0);
+	packet.write_varint(47);  // Protocol version
+	packet.write_utf(server_address.address().to_string());
+	packet.write_ushort(server_address.port());
+	packet.write_varint(1);  // Intention to query status
+
+	packet.write_to_socket(socket);
+}
+
 std::chrono::high_resolution_clock::duration JavaServer::ping(std::chrono::milliseconds timeout) const {
-	const std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+	static std::minstd_rand rng{std::random_device{}()};
+	static std::uniform_int_distribution<std::int64_t> dist{0, std::numeric_limits<std::int64_t>::max()};
 
-	status(timeout);
+	boost::asio::io_context io_context;
+	boost::asio::ip::tcp::socket socket(io_context);
 
-	const std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+	for (std::size_t attempt = 1;; ++attempt) {
+		try {
+			socket.connect(server_address);
+			handshake(socket);
 
-	return end - start;
+			using ping_token_t = std::int64_t;
+			const ping_token_t ping_token = dist(rng);
+
+			McPacket packet;
+			packet.write_varint(1);  // Ping packet
+			packet.write_long(ping_token);
+
+			const std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
+			packet.write_to_socket(socket);
+			McPacket response = McPacket::read_from_socket(socket);
+
+			const std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+
+			if (response.read_varint() != 1) {
+				throw std::runtime_error("Invalid ping response packet");
+			}
+
+			const ping_token_t response_token = response.read_long();
+			if (response_token != ping_token) {
+				throw std::runtime_error("Invalid ping response token (expected " + std::to_string(ping_token) +
+				                         ", got " + std::to_string(response_token) + ")");
+			}
+
+			return end - start;
+		} catch (const std::exception&) {
+			if (attempt >= RETRIES) {
+				throw;
+			}
+		}
+	}
 }
 
 void JavaServer::status(std::chrono::milliseconds timeout) const {
 	boost::asio::io_context io_context;
 	boost::asio::ip::tcp::socket socket(io_context);
-	
-	const std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-	
-	socket.connect(server_address);
 
-	const std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+	for (std::size_t attempt = 1;; ++attempt) {
+		try {
+			socket.connect(server_address);
+			handshake(socket);
+
+			McPacket packet;
+			packet.write_varint(0);  // Request status
+
+			const std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
+			packet.write_to_socket(socket);
+			McPacket response = McPacket::read_from_socket(socket);
+
+			const std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+
+			if (response.read_varint() != 0) {
+				throw std::runtime_error("Invalid status response packet");
+			}
+
+			// TODO: Parse status response (JSON) into object
+			std::cout << "Response: " << response.read_utf() << std::endl;
+			std::cout << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start).count()
+			          << "ms" << std::endl;
+
+			return;
+		} catch (const std::exception&) {
+			if (attempt >= RETRIES) {
+				throw;
+			}
+		}
+	}
 }
 
 JavaServer JavaServer::lookup(std::string_view host_address) {
