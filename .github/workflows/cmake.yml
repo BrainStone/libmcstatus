@@ -43,7 +43,7 @@ jobs:
                 run: conan profile detect --force --name=libmcstatus_${{ matrix.build_type }}
 
             -   name: Install Conan Dependencies
-                run: conan install . --build=missing -s build_type=${{ matrix.build_type }} -s compiler.cppstd=20 -pr:a libmcstatus_${{ matrix.build_type }}
+                run: conan install . --build=missing -s build_type=${{ matrix.build_type }} -s compiler.cppstd=23 -pr:a libmcstatus_${{ matrix.build_type }}
 
             -   name: Save Conan Cache
                 uses: actions/cache/save@v4

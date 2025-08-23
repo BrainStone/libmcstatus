@@ -21,7 +21,14 @@ std::chrono::high_resolution_clock::duration JavaServer::ping(std::chrono::milli
 }
 
 void JavaServer::status(std::chrono::milliseconds timeout) const {
-	// TODO: Implement me
+	boost::asio::io_context io_context;
+	boost::asio::ip::tcp::socket socket(io_context);
+	
+	const std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+	
+	socket.connect(server_address);
+
+	const std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 }
 
 JavaServer JavaServer::lookup(std::string_view host_address) {
