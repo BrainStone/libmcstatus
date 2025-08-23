@@ -35,6 +35,12 @@ set_target_properties(mcstatus PROPERTIES
         OUTPUT_NAME "mcstatus"
 )
 
+# Pedantic Warnings
+target_compile_options(mcstatus PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-Wall -Wextra -Wpedantic -Werror -Wno-unknown-pragmas>
+        $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4 /WX>
+)
+
 # Link dependencies
 target_link_libraries(mcstatus
         PUBLIC
@@ -97,7 +103,7 @@ install(FILES
 )
 
 # Testing
-if(LIBMCSTATUS_BUILD_TESTS)
+if (LIBMCSTATUS_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
-endif()
+endif ()

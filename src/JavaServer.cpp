@@ -27,7 +27,7 @@ void JavaServer::handshake(boost::asio::ip::tcp::socket& socket) const {
 	packet.write_to_socket(socket);
 }
 
-std::chrono::high_resolution_clock::duration JavaServer::ping(std::chrono::milliseconds timeout) const {
+auto JavaServer::ping([[maybe_unused]] std::chrono::milliseconds timeout) const -> latency_t {
 	static std::minstd_rand rng{std::random_device{}()};
 	static std::uniform_int_distribution<std::int64_t> dist{0, std::numeric_limits<std::int64_t>::max()};
 
@@ -72,7 +72,7 @@ std::chrono::high_resolution_clock::duration JavaServer::ping(std::chrono::milli
 	}
 }
 
-void JavaServer::status(std::chrono::milliseconds timeout) const {
+auto JavaServer::status_impl([[maybe_unused]] std::chrono::milliseconds timeout) const -> JavaServerResponse* {
 	boost::asio::io_context io_context;
 
 	for (std::size_t attempt = 1;; ++attempt) {
@@ -100,7 +100,10 @@ void JavaServer::status(std::chrono::milliseconds timeout) const {
 			std::cout << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start).count()
 			          << "ms" << std::endl;
 
-			return;
+			JavaServerResponse* status = new JavaServerResponse{};
+			status->latency = end - start;
+			
+			return status;
 		} catch (const std::exception&) {
 			if (attempt >= RETRIES) {
 				throw;

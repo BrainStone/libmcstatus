@@ -158,7 +158,7 @@ void McPacket::write_to_socket(boost::asio::ip::udp::socket& socket) {
 }
 
 bool McPacket::eof() const {
-	return head_offset >= buffer.size();
+	return head_offset >= static_cast<head_offset_t>(buffer.size());
 }
 
 std::int32_t McPacket::read_varint() {
@@ -202,7 +202,7 @@ std::int64_t McPacket::read_varlong() {
 std::string McPacket::read_utf() {
 	const std::int32_t length = read_varint();
 
-	if ((head_offset + length) > buffer.size()) {
+	if ((head_offset + length) > static_cast<head_offset_t>(buffer.size())) {
 		throw PacketDecodingError{"Received packet is shorter than expected while reading UTF string"};
 	}
 
@@ -253,7 +253,7 @@ McPacket McPacket::read_from_buffer(const buffer_t& buffer) {
 	McPacket length_packet{buffer};
 	std::int32_t length = length_packet.read_varint();
 
-	if ((length_packet.head_offset + length) > buffer.size()) {
+	if ((length_packet.head_offset + length) > static_cast<head_offset_t>(buffer.size())) {
 		throw PacketDecodingError{"Received packet is shorter than expected"};
 	}
 

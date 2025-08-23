@@ -14,6 +14,12 @@ target_link_libraries(libmcstatus_tests
         GTest::gmock
 )
 
+# Pedantic Warnings
+target_compile_options(mcstatus PRIVATE
+        $<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:-Wall -Wextra -Wpedantic -Werror>
+        $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4 /WX>
+)
+
 target_include_directories(libmcstatus_tests
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
