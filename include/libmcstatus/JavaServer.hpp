@@ -4,8 +4,10 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string_view>
+#include <utility>
 
 #include "McServer.hpp"
 
@@ -16,21 +18,31 @@ public:
 	struct JavaServerResponse : public McStatusResponse {
 		struct JavaStatusPlayers : public McStatusPlayers {
 			struct JavaStatusPlayer {
-				std::string name;
-				boost::uuids::uuid id;
+				std::string name{};
+				boost::uuids::uuid id{};
 			};
 
-			std::optional<std::vector<JavaStatusPlayer>> sample;
+			std::optional<std::vector<JavaStatusPlayer>> sample{};
 		};
+		struct JavaStatusVersion : public McStatusVersion {};
 
-		JavaStatusPlayers players;
+		inline explicit JavaServerResponse(
+		    std::shared_ptr<JavaStatusPlayers> players = std::make_shared<JavaStatusPlayers>(),
+		    std::shared_ptr<JavaStatusVersion> version = std::make_shared<JavaStatusVersion>())
+		    : McStatusResponse{std::static_pointer_cast<McStatusPlayers>(players),
+		                       std::static_pointer_cast<McStatusVersion>(version)},
+		      players{std::move(players)},
+		      version{std::move(version)} {}
 
-		std::optional<bool> enforces_secure_chat;
-		std::optional<std::string> icon;
-		std::optional<std::string> forge_data;  // TODO: own class?
+		std::shared_ptr<JavaStatusPlayers> players;
+		std::shared_ptr<JavaStatusVersion> version;
+
+		std::optional<bool> enforces_secure_chat{};
+		std::optional<std::string> icon{};
+		std::optional<std::string> forge_data{};  // TODO: own class?
 	};
 
-private:
+protected:
 	boost::asio::ip::tcp::endpoint server_address;
 
 	void handshake(boost::asio::ip::tcp::socket& socket) const;
@@ -56,6 +68,7 @@ public:
 
 protected:
 	[[nodiscard]] JavaServerResponse* status_impl(std::chrono::milliseconds timeout) const override;
+	[[nodiscard]] static JavaServerResponse* parse_status(latency_t latency, std::string_view status_response);
 
 public:
 	static JavaServer lookup(std::string_view host_address);

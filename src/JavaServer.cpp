@@ -1,5 +1,7 @@
 #include "libmcstatus/JavaServer.hpp"
 
+#include <boost/json.hpp>
+#include <boost/uuid/string_generator.hpp>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -95,21 +97,50 @@ auto JavaServer::status_impl([[maybe_unused]] std::chrono::milliseconds timeout)
 				throw std::runtime_error("Invalid status response packet");
 			}
 
-			// TODO: Parse status response (JSON) into object
-			std::cout << "Response: " << response.read_utf() << std::endl;
-			std::cout << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end - start).count()
-			          << "ms" << std::endl;
-
-			JavaServerResponse* status = new JavaServerResponse{};
-			status->latency = end - start;
-			
-			return status;
+			return parse_status(end - start, response.read_utf());
 		} catch (const std::exception&) {
 			if (attempt >= RETRIES) {
 				throw;
 			}
 		}
 	}
+}
+
+JavaServer::JavaServerResponse* JavaServer::parse_status(latency_t latency, std::string_view status_response) {
+	boost::json::object parsed_status = boost::json::parse(status_response).as_object();
+
+	boost::json::object& players = parsed_status["players"].as_object();
+	boost::json::object& version = parsed_status["version"].as_object();
+
+	auto* status = new JavaServerResponse{};
+	status->latency = latency;
+	status->players->online = players["online"].as_int64();
+	status->players->max = players["max"].as_int64();
+	if (players.contains("sample") && players["sample"].is_array()) {
+		boost::json::array& sample = players["sample"].as_array();
+		status->players->sample = std::vector<JavaServerResponse::JavaStatusPlayers::JavaStatusPlayer>(sample.size());
+
+		boost::uuids::string_generator uuid_gen;
+		for (auto& player : sample) {
+			status->players->sample->emplace_back(player.as_object()["name"].as_string().c_str(),
+			                                      uuid_gen(player.as_object()["id"].as_string().c_str()));
+		}
+	}
+	status->version->name = version["name"].as_string();
+	status->version->protocol = version["protocol"].as_int64();
+	status->motd = parsed_status["description"].is_string() ? parsed_status["description"].as_string().c_str()
+	                                                        : boost::json::serialize(parsed_status["description"]);
+	if (parsed_status.contains("enforcesSecureChat") && parsed_status["enforcesSecureChat"].is_bool())
+		status->enforces_secure_chat = parsed_status["enforcesSecureChat"].as_bool();
+	if (parsed_status.contains("favicon") && parsed_status["favicon"].is_string())
+		status->icon = parsed_status["favicon"].as_string();
+	if (parsed_status.contains("forgeData") || parsed_status.contains("modinfo")) {
+		boost::json::value& forge_data =
+		    parsed_status.contains("forgeData") ? parsed_status["forgeData"] : parsed_status["modinfo"];
+		status->forge_data = boost::json::serialize(forge_data);
+	}
+
+	return status;
 }
 
 JavaServer JavaServer::lookup(std::string_view host_address) {

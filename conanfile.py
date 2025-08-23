@@ -15,8 +15,8 @@ class MyLibConan(ConanFile):
 	default_options = {"shared": False, "fPIC": True}
 
 	def requirements(self):
-		self.requires("boost/[>=1.70.0]")
-		self.test_requires("gtest/[>=1.10.0]")
+		self.requires("boost/[>=1.75.0]")
+		self.test_requires("gtest/[>=1.17.0]")
 
 	def config_options(self):
 		if self.settings.os == "Windows":

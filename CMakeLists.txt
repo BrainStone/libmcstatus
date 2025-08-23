@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Conan integration
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS json system)
 
 # Library options
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -46,6 +46,7 @@ target_link_libraries(mcstatus
         PUBLIC
         Boost::system
         PRIVATE
+        Boost::json
         resolv
 )
 
