@@ -106,7 +106,7 @@ void McPacket::write_utf(std::string_view value) {
 
 void McPacket::write_ascii(std::string_view value) {
 	// We really don't have a concept of encodings, so we just store the string as-is with a trailing null byte
-	buffer.insert(get_head(), value.begin(), value.end());
+	buffer.insert(buffer.end(), value.begin(), value.end());
 	buffer.push_back('\0');
 }
 

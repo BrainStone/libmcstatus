@@ -251,12 +251,14 @@ TEST(McPacketTest, MixedWriteRead) {
 	packet.write_utf("test string");
 	packet.write_bool(false);
 	packet.write_int(999888777);
+	packet.write_ascii("test string 2");
 	packet.write_varlong(123456789012345LL);
 
 	EXPECT_EQ(packet.read_varint(), 100);
 	EXPECT_EQ(packet.read_utf(), "test string");
 	EXPECT_EQ(packet.read_bool(), false);
 	EXPECT_EQ(packet.read_int(), 999888777);
+	EXPECT_EQ(packet.read_ascii(), "test string 2");
 	EXPECT_EQ(packet.read_varlong(), 123456789012345LL);
 }
 
@@ -278,6 +280,13 @@ TEST(McPacketTest, RoundTripThroughBuffer) {
 	packet.write_varint(-42);
 	packet.write_utf("Hello, 世界!");
 	packet.write_bool(true);
+	packet.write_ascii(
+	    "Very long string with lots of characters. We are doing this to ensure the varint write covers at least 2 "
+	    "bytes, so that we can test the buffer more through.\n"
+	    "Very long string with lots of characters. We are doing this to ensure the varint write covers at least 2 "
+	    "bytes, so that we can test the buffer more through.\n"
+	    "Very long string with lots of characters. We are doing this to ensure the varint write covers at least 2 "
+	    "bytes, so that we can test the buffer more through.\n");
 	packet.write_long(-9876543210LL);
 
 	// Convert to buffer and back
@@ -288,6 +297,14 @@ TEST(McPacketTest, RoundTripThroughBuffer) {
 	EXPECT_EQ(reconstructed.read_varint(), -42);
 	EXPECT_EQ(reconstructed.read_utf(), "Hello, 世界!");
 	EXPECT_EQ(reconstructed.read_bool(), true);
+	EXPECT_EQ(
+	    reconstructed.read_ascii(),
+	    "Very long string with lots of characters. We are doing this to ensure the varint write covers at least 2 "
+	    "bytes, so that we can test the buffer more through.\n"
+	    "Very long string with lots of characters. We are doing this to ensure the varint write covers at least 2 "
+	    "bytes, so that we can test the buffer more through.\n"
+	    "Very long string with lots of characters. We are doing this to ensure the varint write covers at least 2 "
+	    "bytes, so that we can test the buffer more through.\n");
 	EXPECT_EQ(reconstructed.read_long(), -9876543210LL);
 }
 
